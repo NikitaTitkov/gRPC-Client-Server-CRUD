@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
+	"sync"
 
 	"github.com/NikitaTitkov/gRPC-Server-CRUD/pkg/users_v1"
 	"github.com/fatih/color"
@@ -15,9 +17,26 @@ const (
 	baseurl = "localhost:50051"
 )
 
+type syncMap struct {
+	elements map[int64]*users_v1.User
+	mutex    sync.RWMutex
+}
+
+var (
+	users = &syncMap{elements: make(map[int64]*users_v1.User)}
+)
+
 // Server represents the unimplemented gRPC server that handles user-related requests.
 type Server struct {
 	users_v1.UnimplementedUsersV1Server
+}
+
+// Create - creates a new user.
+func (s *Server) Create(ctx context.Context, req *users_v1.CreateIn) (*users_v1.CreateOut, error) {
+	users.mutex.Lock()
+	defer users.mutex.Unlock()
+	users.elements[req.User.GetID()] = req.User
+	return &users_v1.CreateOut{ID: req.User.GetID()}, nil
 }
 
 func main() {
