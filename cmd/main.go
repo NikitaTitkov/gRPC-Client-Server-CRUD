@@ -32,7 +32,7 @@ type Server struct {
 }
 
 // Create - creates a new user.
-func (s *Server) Create(ctx context.Context, req *users_v1.CreateIn) (*users_v1.CreateOut, error) {
+func (s *Server) Create(_ context.Context, req *users_v1.CreateIn) (*users_v1.CreateOut, error) {
 	users.mutex.Lock()
 	defer users.mutex.Unlock()
 	users.elements[req.User.GetID()] = req.User
