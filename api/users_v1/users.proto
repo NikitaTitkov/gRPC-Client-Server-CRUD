@@ -29,12 +29,17 @@ message User{
     UserInfo Info = 5;
 }
 
+message UpdateUserInfo{
+	google.protobuf.StringValue Street = 1;
+    google.protobuf.StringValue City = 2;
+
+}
+
 message UpdateUser{
     google.protobuf.StringValue Name = 1;   
 	google.protobuf.Int32Value Age = 2;
 	google.protobuf.StringValue Email = 3;
-    google.protobuf.StringValue Street = 4;
-    google.protobuf.StringValue Home = 5;
+    UpdateUserInfo Info = 4;
 }
 
 message CreateIn{
@@ -64,6 +69,7 @@ message GetAllOut{
 
 message UpdateIn{
     int64 ID = 1;
+    UpdateUser user = 2;
 }
 
 message DeleteIn{

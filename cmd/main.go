@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const (
@@ -73,6 +74,17 @@ func (s *Server) GetAll(_ context.Context, req *users_v1.GetAllIn) (*users_v1.Ge
 		}
 	}
 	return &users_v1.GetAllOut{Users: userSlice}, nil
+}
+
+// Delete - method that deletes a user from the in-memory users database.
+func (s *Server) Delete(_ context.Context, req *users_v1.DeleteIn) (*emptypb.Empty, error) {
+	users.mutex.Lock()
+	defer users.mutex.Unlock()
+	if _, ok := users.elements[req.GetID()]; !ok {
+		return nil, status.Errorf(codes.NotFound, "user with ID = %d not found", req.GetID())
+	}
+	delete(users.elements, req.GetID())
+	return &emptypb.Empty{}, nil
 }
 
 func main() {
