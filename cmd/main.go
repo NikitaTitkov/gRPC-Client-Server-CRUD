@@ -76,6 +76,31 @@ func (s *Server) GetAll(_ context.Context, req *users_v1.GetAllIn) (*users_v1.Ge
 	return &users_v1.GetAllOut{Users: userSlice}, nil
 }
 
+// Update - method that updates a user in the in-memory users database.
+func (s *Server) Update(_ context.Context, req *users_v1.UpdateIn) (*emptypb.Empty, error) {
+	users.mutex.Lock()
+	defer users.mutex.Unlock()
+	if _, ok := users.elements[req.GetID()]; !ok {
+		return nil, status.Errorf(codes.NotFound, "user with ID = %d not found", req.GetID())
+	}
+	if req.User.GetName() != nil {
+		users.elements[req.GetID()].Name = req.User.GetName().GetValue()
+	}
+	if req.User.GetAge() != nil {
+		users.elements[req.GetID()].Age = req.User.GetAge().GetValue()
+	}
+	if req.User.GetEmail() != nil {
+		users.elements[req.GetID()].Email = req.User.GetEmail().GetValue()
+	}
+	if req.User.Info.GetStreet() != nil {
+		users.elements[req.GetID()].Info.Street = req.User.Info.GetStreet().GetValue()
+	}
+	if req.User.Info.GetCity() != nil {
+		users.elements[req.GetID()].Info.City = req.User.Info.GetCity().GetValue()
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // Delete - method that deletes a user from the in-memory users database.
 func (s *Server) Delete(_ context.Context, req *users_v1.DeleteIn) (*emptypb.Empty, error) {
 	users.mutex.Lock()
