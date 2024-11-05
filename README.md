@@ -33,7 +33,8 @@ protoc --version
 ```bash
 make install-deps
 ```
-get в go.mod
+Для получения зависимостей в go.mod:
+
 ```bash
 make get-deps
 ```
