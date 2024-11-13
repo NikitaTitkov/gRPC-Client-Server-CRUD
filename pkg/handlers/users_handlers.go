@@ -20,6 +20,7 @@ var (
 	users = &syncMap{elements: make(map[int64]*users_v1.User)}
 )
 
+// Server implements the UsersV1Server interface for handling gRPC requests.
 type Server struct {
 	users_v1.UnimplementedUsersV1Server
 }
