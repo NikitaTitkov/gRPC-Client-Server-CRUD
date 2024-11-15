@@ -31,48 +31,53 @@ func init() {
 
 func main() {
 	if err := initEnv(); err != nil {
-		logrus.Fatal("failed to get env: ", err)
+		logrus.Fatalf("Failed to load environment variables from config: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	opts := options.Client()
-
+	opts := options.Client().ApplyURI(os.Getenv("DB_URI"))
 	opts.SetAuth(options.Credential{
 		Username: os.Getenv("DB_USERNAME"),
-		Password: os.Getenv("DB_password"),
+		Password: os.Getenv("DB_PASSWORD"),
 	})
 
-	opts.ApplyURI("localhost:27019")
+	dbClient, err := mongo.Connect(ctx, opts)
+	if err != nil {
+		logrus.Fatalf("Failed to connect to MongoDB: %v", err)
+	}
+	defer func() {
+		if err := dbClient.Disconnect(ctx); err != nil {
+			logrus.Errorf("Error disconnecting MongoDB client: %v", err)
+		}
+	}()
 
-	dbClient, err := mongo.Connect(ctx,opts)
-	if err != nil{
-		logrus.Fatal(err)
+	if err := dbClient.Ping(ctx, nil); err != nil {
+		logrus.Fatalf("MongoDB connection test failed: %v", err)
 	}
 
-	if err:=dbClient.Ping(context.Background(),nil); err != nil{
-		
-	}
+	DB := dbClient.Database(os.Getenv("DB_NAME"))
 
 	l, err := net.Listen("tcp", baseurl)
 	if err != nil {
-		logrus.Fatal(color.RedString("Listen error: "), err)
+		logrus.Fatalf("Listen error: %v", err)
 	}
 
 	s := grpc.NewServer()
 	reflection.Register(s)
-	users_v1.RegisterUsersV1Server(s, &handlers.Server{})
+	users_v1.RegisterUsersV1Server(s, handlers.NewServ(DB))
+
 	fmt.Println(color.GreenString("Server is running!"))
 
 	if err := s.Serve(l); err != nil {
-		logrus.Fatal(color.RedString("Serve error: "), err)
+		logrus.Fatalf("Serve error: %v", err)
 	}
 }
 
 func initEnv() error {
 	if err := gotenv.Load(configPath); err != nil {
-		return err
+		return fmt.Errorf("error loading config file: %w", err)
 	}
 	return nil
 }

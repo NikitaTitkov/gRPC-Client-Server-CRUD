@@ -5,10 +5,17 @@ import (
 	"sync"
 
 	"github.com/NikitaTitkov/gRPC-Server-CRUD/pkg/users_v1"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+type Handler struct {
+	DB *mongo.Database
+}
 
 // Server represents the unimplemented gRPC server that handles user-related requests.
 type syncMap struct {
@@ -23,17 +30,33 @@ var (
 // Server implements the UsersV1Server interface for handling gRPC requests.
 type Server struct {
 	users_v1.UnimplementedUsersV1Server
+	db *mongo.Database
+}
+
+func NewServ(db *mongo.Database) *Server {
+	return &Server{
+		db: db,
+	}
 }
 
 // Create - creates a new user.
-func (s *Server) Create(_ context.Context, req *users_v1.CreateIn) (*users_v1.CreateOut, error) {
-	users.mutex.Lock()
-	defer users.mutex.Unlock()
-	if _, ok := users.elements[req.User.GetID()]; ok {
-		return nil, status.Errorf(codes.AlreadyExists, "user with ID %d already exists", req.User.GetID())
+func (s *Server) Create(ctx context.Context, req *users_v1.CreateIn) (*users_v1.CreateOut, error) {
+	var existingUser bson.M
+	user := req.GetUser()
+
+	err := s.db.Collection("users").FindOne(ctx, bson.M{"email": user.GetEmail()}).Decode(&existingUser)
+	if err == nil {
+		return nil, status.Errorf(codes.AlreadyExists, "user with email %s already exists", user.Email)
 	}
-	users.elements[req.User.GetID()] = req.User
-	return &users_v1.CreateOut{ID: req.User.GetID()}, nil
+
+	result, insertErr := s.db.Collection("users").InsertOne(ctx, user)
+	if insertErr != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create user: %v", insertErr)
+	}
+
+	userID := result.InsertedID.(primitive.ObjectID).Hex() // Преобразуем ObjectID в строку
+
+	return &users_v1.CreateOut{ID: userID}, nil
 }
 
 // Get - returns the user associated with the specified ID

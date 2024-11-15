@@ -31,8 +31,7 @@ func main() {
 	defer cancel()
 
 	rCreate, err := client.Create(ctx, &users_v1.CreateIn{
-		User: &users_v1.User{
-			ID:    1,
+		User: &users_v1.CreateUser{
 			Name:  "Nikita",
 			Age:   20,
 			Email: "nikita@gmail.com",

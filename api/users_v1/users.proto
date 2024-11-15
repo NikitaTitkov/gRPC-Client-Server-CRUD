@@ -1,77 +1,85 @@
-syntax = "proto3";
+    syntax = "proto3";
 
-package users_v1;
+    package users_v1;
 
-import "google/protobuf/empty.proto";
-import "google/protobuf/wrappers.proto";
+    import "google/protobuf/empty.proto";
+    import "google/protobuf/wrappers.proto";
 
-option go_package = "github.com/NikitaTitkov/gRPC-Server-CRUD/pkg/users_v1;users_v1";
+    option go_package = "github.com/NikitaTitkov/gRPC-Server-CRUD/pkg/users_v1;users_v1";
 
-service UsersV1{
-    rpc Create(CreateIn) returns (CreateOut);
-    rpc Get(GetIn) returns (GetOut);
-    rpc GetAll(GetAllIn) returns (GetAllOut);
-    rpc Update(UpdateIn) returns (google.protobuf.Empty);
-    rpc Delete(DeleteIn) returns (google.protobuf.Empty);
-}
+    service UsersV1{
+        rpc Create(CreateIn) returns (CreateOut);
+        rpc Get(GetIn) returns (GetOut);
+        rpc GetAll(GetAllIn) returns (GetAllOut);
+        rpc Update(UpdateIn) returns (google.protobuf.Empty);
+        rpc Delete(DeleteIn) returns (google.protobuf.Empty);
+    }
 
-message UserInfo{
-	string Street = 1;
-    string City = 2;
+    message UserInfo{
+        string Street = 1;
+        string City = 2;
 
-}
+    }
 
-message User{
-    int64 ID = 1 ;
-	string Name = 2;   
-	int32 Age = 3;
-	string Email = 4;
-    UserInfo Info = 5;
-}
+    message User{
+        int64 ID = 1 ;
+        string Name = 2;   
+        int32 Age = 3;
+        string Email = 4;
+        UserInfo Info = 5;
+    }
 
-message UpdateUserInfo{
-	google.protobuf.StringValue Street = 1;
-    google.protobuf.StringValue City = 2;
+    message CreateUser{
+        string Name = 2;   
+        int32 Age = 3;
+        string Email = 4;
+        UserInfo Info = 5;
+    }
 
-}
 
-message UpdateUser{
-    google.protobuf.StringValue Name = 1;   
-	google.protobuf.Int32Value Age = 2;
-	google.protobuf.StringValue Email = 3;
-    UpdateUserInfo Info = 4;
-}
+    message UpdateUserInfo{
+        google.protobuf.StringValue Street = 1;
+        google.protobuf.StringValue City = 2;
 
-message CreateIn{
-    User user = 1;
-}
+    }
 
-message CreateOut{
-    int64 ID = 1;
-}
+    message UpdateUser{
+        google.protobuf.StringValue Name = 1;   
+        google.protobuf.Int32Value Age = 2;
+        google.protobuf.StringValue Email = 3;
+        UpdateUserInfo Info = 4;
+    }
 
-message GetIn{
-    int64 ID = 1;
-}
+    message CreateIn{
+        CreateUser user = 1;
+    }
 
-message GetOut{
-    User user = 1;
-}
+    message CreateOut{
+        string ID = 1;
+    }
 
-message GetAllIn{
-    int64 limit = 1;
-    int64 offset = 2;
-}
+    message GetIn{
+        int64 ID = 1;
+    }
 
-message GetAllOut{
-    repeated User users = 1;
-}
+    message GetOut{
+        User user = 1;
+    }
 
-message UpdateIn{
-    int64 ID = 1;
-    UpdateUser user = 2;
-}
+    message GetAllIn{
+        int64 limit = 1;
+        int64 offset = 2;
+    }
 
-message DeleteIn{
-    int64 ID = 1;
-}
+    message GetAllOut{
+        repeated User users = 1;
+    }
+
+    message UpdateIn{
+        int64 ID = 1;
+        UpdateUser user = 2;
+    }
+
+    message DeleteIn{
+        int64 ID = 1;
+    }
