@@ -59,7 +59,7 @@ func main() {
 
 	DB := dbClient.Database(os.Getenv("DB_NAME"))
 
-	l, err := net.Listen("tcp", baseurl)
+	l, err := net.Listen("tcp", os.Getenv("BASEURL"))
 	if err != nil {
 		logrus.Fatalf("Listen error: %v", err)
 	}

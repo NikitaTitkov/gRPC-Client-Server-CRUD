@@ -22,7 +22,7 @@
     }
 
     message User{
-        int64 ID = 1 ;
+        string ID = 1 ;
         string Name = 2;   
         int32 Age = 3;
         string Email = 4;
@@ -59,7 +59,7 @@
     }
 
     message GetIn{
-        int64 ID = 1;
+        string ID = 1;
     }
 
     message GetOut{

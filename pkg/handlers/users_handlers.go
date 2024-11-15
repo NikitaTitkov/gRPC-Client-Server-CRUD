@@ -5,9 +5,11 @@ import (
 	"sync"
 
 	"github.com/NikitaTitkov/gRPC-Server-CRUD/pkg/users_v1"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -54,40 +56,60 @@ func (s *Server) Create(ctx context.Context, req *users_v1.CreateIn) (*users_v1.
 		return nil, status.Errorf(codes.Internal, "failed to create user: %v", insertErr)
 	}
 
-	userID := result.InsertedID.(primitive.ObjectID).Hex() // Преобразуем ObjectID в строку
+	userID := result.InsertedID.(primitive.ObjectID).Hex()
 
 	return &users_v1.CreateOut{ID: userID}, nil
 }
 
 // Get - returns the user associated with the specified ID
-func (s *Server) Get(_ context.Context, req *users_v1.GetIn) (*users_v1.GetOut, error) {
-	users.mutex.RLock()
-	defer users.mutex.RUnlock()
-	user := users.elements[req.ID]
+func (s *Server) Get(ctx context.Context, req *users_v1.GetIn) (*users_v1.GetOut, error) {
+	var user users_v1.User
 
-	if user == nil {
-		return nil, status.Errorf(codes.NotFound, "user with ID = %d not found", req.GetID())
+	id, err := primitive.ObjectIDFromHex(req.GetID())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid ID format: %v", err)
 	}
-	return &users_v1.GetOut{User: user}, nil
+
+	err = s.db.Collection("users").FindOne(ctx, bson.M{"_id": id}).Decode(&user)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "user with ID = %s not found", req.GetID())
+	}
+	return &users_v1.GetOut{User: &user}, nil
 }
 
 // GetAll - method to get all users with limit and offset.
-func (s *Server) GetAll(_ context.Context, req *users_v1.GetAllIn) (*users_v1.GetAllOut, error) {
-	userSlice := make([]*users_v1.User, 0, len(users.elements))
-	position := int64(0)
-	users.mutex.RLock()
-	defer users.mutex.RUnlock()
-	for _, user := range users.elements {
-		if position < req.GetOffset() {
-			position++
-			continue
-		}
-		userSlice = append(userSlice, user)
-		if len(userSlice) == int(req.GetLimit()) {
-			break
-		}
+func (s *Server) GetAll(ctx context.Context, req *users_v1.GetAllIn) (*users_v1.GetAllOut, error) {
+
+	collection := s.db.Collection("users")
+	filter := bson.M{}
+
+	findOptions := options.Find().
+		SetSkip(req.GetOffset()).
+		SetLimit(req.GetLimit())
+
+	cursor, err := collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		logrus.Printf("MongoDB query error: %v", err)
+		return nil, status.Errorf(codes.Internal, "database query failed: %v", err)
 	}
-	return &users_v1.GetAllOut{Users: userSlice}, nil
+	defer cursor.Close(ctx)
+
+	var users []*users_v1.User
+	for cursor.Next(ctx) {
+		var user users_v1.User
+		if err := cursor.Decode(&user); err != nil {
+			logrus.Printf("Error decoding user: %v", err)
+			return nil, status.Errorf(codes.Internal, "failed to decode user: %v", err)
+		}
+		users = append(users, &user)
+	}
+
+	if err := cursor.Err(); err != nil {
+		logrus.Printf("Cursor error: %v", err)
+		return nil, status.Errorf(codes.Internal, "cursor error: %v", err)
+	}
+
+	return &users_v1.GetAllOut{Users: users}, nil
 }
 
 // Update - method that updates a user in the in-memory users database.

@@ -45,7 +45,7 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("%v", rCreate)
-	rGet, err := client.Get(ctx, &users_v1.GetIn{ID: 1})
+	rGet, err := client.Get(ctx, &users_v1.GetIn{ID: "1"})
 	if err != nil {
 		log.Fatal(err)
 	}
