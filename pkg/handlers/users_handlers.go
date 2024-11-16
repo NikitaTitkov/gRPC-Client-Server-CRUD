@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"sync"
 
 	"github.com/NikitaTitkov/gRPC-Server-CRUD/pkg/users_v1"
 	"github.com/sirupsen/logrus"
@@ -15,26 +14,13 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-type Handler struct {
-	DB *mongo.Database
-}
-
-// Server represents the unimplemented gRPC server that handles user-related requests.
-type syncMap struct {
-	elements map[int64]*users_v1.User
-	mutex    sync.RWMutex
-}
-
-var (
-	users = &syncMap{elements: make(map[int64]*users_v1.User)}
-)
-
 // Server implements the UsersV1Server interface for handling gRPC requests.
 type Server struct {
 	users_v1.UnimplementedUsersV1Server
 	db *mongo.Database
 }
 
+// NewServ creates a new server instance with a connection to the database.
 func NewServ(db *mongo.Database) *Server {
 	return &Server{
 		db: db,
@@ -43,10 +29,9 @@ func NewServ(db *mongo.Database) *Server {
 
 // Create - creates a new user.
 func (s *Server) Create(ctx context.Context, req *users_v1.CreateIn) (*users_v1.CreateOut, error) {
-	var existingUser bson.M
 	user := req.GetUser()
 
-	err := s.db.Collection("users").FindOne(ctx, bson.M{"email": user.GetEmail()}).Decode(&existingUser)
+	err := s.db.Collection("users").FindOne(ctx, bson.M{"email": user.GetEmail()}).Err()
 	if err == nil {
 		return nil, status.Errorf(codes.AlreadyExists, "user with email %s already exists", user.Email)
 	}
@@ -61,19 +46,20 @@ func (s *Server) Create(ctx context.Context, req *users_v1.CreateIn) (*users_v1.
 	return &users_v1.CreateOut{ID: userID}, nil
 }
 
-// Get - returns the user associated with the specified ID
+// Get - returns the = associated with the specified ID
 func (s *Server) Get(ctx context.Context, req *users_v1.GetIn) (*users_v1.GetOut, error) {
 	var user users_v1.User
-
 	id, err := primitive.ObjectIDFromHex(req.GetID())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid ID format: %v", err)
 	}
 
 	err = s.db.Collection("users").FindOne(ctx, bson.M{"_id": id}).Decode(&user)
+	user.ID = id.Hex()
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "user with ID = %s not found", req.GetID())
 	}
+
 	return &users_v1.GetOut{User: &user}, nil
 }
 
@@ -92,7 +78,11 @@ func (s *Server) GetAll(ctx context.Context, req *users_v1.GetAllIn) (*users_v1.
 		logrus.Printf("MongoDB query error: %v", err)
 		return nil, status.Errorf(codes.Internal, "database query failed: %v", err)
 	}
-	defer cursor.Close(ctx)
+	defer func() {
+		if err := cursor.Close(ctx); err != nil {
+			logrus.Printf("failed to close cursor: %v", err)
+		}
+	}()
 
 	var users []*users_v1.User
 	for cursor.Next(ctx) {
@@ -113,37 +103,60 @@ func (s *Server) GetAll(ctx context.Context, req *users_v1.GetAllIn) (*users_v1.
 }
 
 // Update - method that updates a user in the in-memory users database.
-func (s *Server) Update(_ context.Context, req *users_v1.UpdateIn) (*emptypb.Empty, error) {
-	users.mutex.Lock()
-	defer users.mutex.Unlock()
-	if _, ok := users.elements[req.GetID()]; !ok {
-		return nil, status.Errorf(codes.NotFound, "user with ID = %d not found", req.GetID())
+func (s *Server) Update(ctx context.Context, req *users_v1.UpdateIn) (*emptypb.Empty, error) {
+	collection := s.db.Collection("users")
+
+	filter := bson.M{"id": req.GetID()}
+	err := collection.FindOne(ctx, filter).Err()
+	if err == mongo.ErrNoDocuments {
+		return nil, status.Errorf(codes.NotFound, "user with ID = %s not found", req.GetID())
 	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to check user existence: %v", err)
+	}
+
+	update := bson.M{"$set": bson.M{}}
 	if req.User.GetName() != nil {
-		users.elements[req.GetID()].Name = req.User.GetName().GetValue()
+		update["$set"].(bson.M)["name"] = req.User.GetName().GetValue()
 	}
 	if req.User.GetAge() != nil {
-		users.elements[req.GetID()].Age = req.User.GetAge().GetValue()
+		update["$set"].(bson.M)["age"] = req.User.GetAge().GetValue()
 	}
 	if req.User.GetEmail() != nil {
-		users.elements[req.GetID()].Email = req.User.GetEmail().GetValue()
+		update["$set"].(bson.M)["email"] = req.User.GetEmail().GetValue()
 	}
 	if req.User.Info.GetStreet() != nil {
-		users.elements[req.GetID()].Info.Street = req.User.Info.GetStreet().GetValue()
+		update["$set"].(bson.M)["info.street"] = req.User.Info.GetStreet().GetValue()
 	}
 	if req.User.Info.GetCity() != nil {
-		users.elements[req.GetID()].Info.City = req.User.Info.GetCity().GetValue()
+		update["$set"].(bson.M)["info.city"] = req.User.Info.GetCity().GetValue()
 	}
+	_, err = collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to update user: %v", err)
+	}
+
 	return &emptypb.Empty{}, nil
 }
 
 // Delete - method that deletes a user from the in-memory users database.
-func (s *Server) Delete(_ context.Context, req *users_v1.DeleteIn) (*emptypb.Empty, error) {
-	users.mutex.Lock()
-	defer users.mutex.Unlock()
-	if _, ok := users.elements[req.GetID()]; !ok {
-		return nil, status.Errorf(codes.NotFound, "user with ID = %d not found", req.GetID())
+func (s *Server) Delete(ctx context.Context, req *users_v1.DeleteIn) (*emptypb.Empty, error) {
+	collection := s.db.Collection("users")
+	id, err := primitive.ObjectIDFromHex(req.GetID())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid ID format: %v", err)
 	}
-	delete(users.elements, req.GetID())
+
+	filter := bson.M{"_id": id}
+
+	result, err := collection.DeleteOne(ctx, filter)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to delete user: %v", err)
+	}
+
+	if result.DeletedCount == 0 {
+		return nil, status.Errorf(codes.NotFound, "user with ID = %s not found", req.GetID())
+	}
+
 	return &emptypb.Empty{}, nil
 }

@@ -76,10 +76,10 @@
     }
 
     message UpdateIn{
-        int64 ID = 1;
+        string ID = 1;
         UpdateUser user = 2;
     }
 
     message DeleteIn{
-        int64 ID = 1;
+        string ID = 1;
     }

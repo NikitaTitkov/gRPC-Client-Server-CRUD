@@ -19,10 +19,6 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-const (
-	baseurl = "localhost:50051"
-)
-
 var configPath string
 
 func init() {
