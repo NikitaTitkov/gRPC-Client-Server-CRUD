@@ -31,8 +31,7 @@ func main() {
 	defer cancel()
 
 	rCreate, err := client.Create(ctx, &users_v1.CreateIn{
-		User: &users_v1.User{
-			ID:    1,
+		User: &users_v1.CreateUser{
 			Name:  "Nikita",
 			Age:   20,
 			Email: "nikita@gmail.com",
@@ -46,7 +45,7 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("%v", rCreate)
-	rGet, err := client.Get(ctx, &users_v1.GetIn{ID: 1})
+	rGet, err := client.Get(ctx, &users_v1.GetIn{ID: "1"})
 	if err != nil {
 		log.Fatal(err)
 	}
